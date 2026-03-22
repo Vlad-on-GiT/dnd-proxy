@@ -17,16 +17,24 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
 
   try {
-    // AgentRouter полностью совместим с Anthropic API — просто меняем URL и ключ
+    // AgentRouter: base URL = https://agentrouter.org/v1, endpoint = /messages
     const response = await fetch("https://agentrouter.org/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type":      "application/json",
         "x-api-key":         process.env.AGENTROUTER_API_KEY,
         "anthropic-version": "2023-06-01",
+        "Authorization":     `Bearer ${process.env.AGENTROUTER_API_KEY}`,
       },
       body: JSON.stringify(req.body),
     });
+
+    // Если вернулся не JSON — показываем текст для диагностики
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const text = await response.text();
+      return res.status(500).json({ proxy_error: "Non-JSON response", body: text.slice(0, 300) });
+    }
 
     const data = await response.json();
 
