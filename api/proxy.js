@@ -30,13 +30,7 @@ export default async function handler(req, res) {
         "X-Title":       "Khranitel Svitkov",
       },
       body: JSON.stringify({
-        // Лучшие бесплатные модели на OpenRouter — fallback если первая занята
-        models: [
-          "meta-llama/llama-3.3-70b-instruct:free",   // GPT-4 уровень, отлично для ролевых игр
-          "deepseek/deepseek-r1:free",                  // сильная альтернатива
-          "google/gemma-3-27b-it:free",                 // быстрый fallback
-        ],
-        route:       "fallback",
+        model:       "openrouter/auto",  // использует твой Auto Router с настроенными моделями
         messages:    openaiMessages,
         max_tokens:  1000,
         temperature: 0.9,
@@ -56,6 +50,9 @@ export default async function handler(req, res) {
     }
 
     const text = data?.choices?.[0]?.message?.content || "{}";
+    // Логируем какую модель выбрал Auto Router
+    console.log("Model used:", data?.model);
+
     return res.status(200).json({
       content: [{ type: "text", text }]
     });
