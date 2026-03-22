@@ -27,7 +27,7 @@ export default async function handler(req, res) {
         "Content-Type":  "application/json",
         "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "HTTP-Referer":  "https://vlad-on-git.github.io/DND/",
-        "X-Title":       "Хранитель Свитков",
+        "X-Title":       "Khranitel Svitkov",
       },
       body: JSON.stringify({
         model:       "openrouter/free",   // авто-выбор лучшей бесплатной модели
