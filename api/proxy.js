@@ -1,6 +1,7 @@
 export const config = {
   api: {
-    bodyParser: { sizeLimit: '4mb' },
+    bodyParser:  { sizeLimit: '4mb' },
+    maxDuration: 30,
   },
 };
 
@@ -16,7 +17,6 @@ export default async function handler(req, res) {
   try {
     const { system, messages } = req.body;
 
-    // OpenRouter использует формат OpenAI (не Anthropic)
     const openaiMessages = [];
     if (system) openaiMessages.push({ role: "system", content: system });
     for (const msg of messages) openaiMessages.push({ role: msg.role, content: msg.content });
@@ -30,7 +30,13 @@ export default async function handler(req, res) {
         "X-Title":       "Khranitel Svitkov",
       },
       body: JSON.stringify({
-        model:       "openrouter/free",   // авто-выбор лучшей бесплатной модели
+        // Лучшие бесплатные модели на OpenRouter — fallback если первая занята
+        models: [
+          "meta-llama/llama-3.3-70b-instruct:free",   // GPT-4 уровень, отлично для ролевых игр
+          "deepseek/deepseek-r1:free",                  // сильная альтернатива
+          "google/gemma-3-27b-it:free",                 // быстрый fallback
+        ],
+        route:       "fallback",
         messages:    openaiMessages,
         max_tokens:  1000,
         temperature: 0.9,
@@ -49,7 +55,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ proxy_error: data });
     }
 
-    // Конвертируем ответ OpenAI → формат Anthropic (чтобы game.html не менять)
     const text = data?.choices?.[0]?.message?.content || "{}";
     return res.status(200).json({
       content: [{ type: "text", text }]
