@@ -25,7 +25,6 @@ export default async function handler(req, res) {
     const { system, messages } = req.body;
 
     // Конвертируем формат Anthropic → Gemini
-    // system prompt добавляем как первое сообщение от user с пометкой
     const geminiContents = [];
 
     if (system) {
@@ -39,7 +38,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Конвертируем историю сообщений
     for (const msg of messages) {
       geminiContents.push({
         role: msg.role === "assistant" ? "model" : "user",
@@ -62,6 +60,11 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+
+    // Если Gemini вернул ошибку — пробрасываем для диагностики
+    if (!response.ok || data.error) {
+      return res.status(500).json({ gemini_error: data });
+    }
 
     // Конвертируем ответ Gemini → формат Anthropic (чтобы game.html не менять)
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
