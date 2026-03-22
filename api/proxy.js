@@ -24,50 +24,40 @@ export default async function handler(req, res) {
   try {
     const { system, messages } = req.body;
 
-    // Конвертируем формат Anthropic → Gemini
-    const geminiContents = [];
+    // Конвертируем формат Anthropic → Groq (OpenAI-совместимый)
+    const groqMessages = [];
 
     if (system) {
-      geminiContents.push({
-        role: "user",
-        parts: [{ text: `[SYSTEM INSTRUCTIONS - follow strictly]\n${system}` }]
-      });
-      geminiContents.push({
-        role: "model",
-        parts: [{ text: "Понял. Буду строго следовать инструкциям и отвечать только валидным JSON." }]
-      });
+      groqMessages.push({ role: "system", content: system });
     }
 
     for (const msg of messages) {
-      geminiContents.push({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: msg.content }]
-      });
+      groqMessages.push({ role: msg.role, content: msg.content });
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-    const response = await fetch(url, {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      },
       body: JSON.stringify({
-        contents: geminiContents,
-        generationConfig: {
-          temperature:     0.9,
-          maxOutputTokens: 1000,
-        }
+        model:       "llama-3.3-70b-versatile",
+        messages:    groqMessages,
+        max_tokens:  1000,
+        temperature: 0.9,
       }),
     });
 
     const data = await response.json();
 
-    // Если Gemini вернул ошибку — пробрасываем для диагностики
+    // Если Groq вернул ошибку — пробрасываем для диагностики
     if (!response.ok || data.error) {
-      return res.status(500).json({ gemini_error: data });
+      return res.status(500).json({ groq_error: data });
     }
 
-    // Конвертируем ответ Gemini → формат Anthropic (чтобы game.html не менять)
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    // Конвертируем ответ Groq → формат Anthropic (чтобы game.html не менять)
+    const text = data?.choices?.[0]?.message?.content || "{}";
     return res.status(200).json({
       content: [{ type: "text", text }]
     });
