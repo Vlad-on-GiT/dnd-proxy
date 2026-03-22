@@ -1,11 +1,19 @@
+// Явно включаем парсер тела — это ключевое для Vercel
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
 
-  // CORS — разрешаем только твой сайт
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "https://vlad-on-git.github.io");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // Preflight запрос от браузера
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
@@ -15,12 +23,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Читаем тело вручную если Vercel не распарсил автоматически
-    let body = req.body;
-    if (typeof body === "string") {
-      body = JSON.parse(body);
-    }
-
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -28,7 +30,7 @@ export default async function handler(req, res) {
         "x-api-key":         process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(req.body),
     });
 
     const data = await response.json();
