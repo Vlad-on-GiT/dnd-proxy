@@ -17,73 +17,36 @@ export default async function handler(req, res) {
   try {
     const { system, messages } = req.body;
 
+    // Конвертируем формат Anthropic → OpenAI (DeepSeek совместим с OpenAI)
     const openaiMessages = [];
     if (system) openaiMessages.push({ role: "system", content: system });
     for (const msg of messages) openaiMessages.push({ role: msg.role, content: msg.content });
 
-    const MODELS = [
-      "stepfun/step-3.5-flash:free",
-      "deepseek/deepseek-chat-v3-5:free",
-      "google/gemini-2.5-flash-lite-preview-06-17:free",
-      "mistralai/mistral-7b-instruct:free",
-    ];
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model:       "deepseek-chat",   // DeepSeek-V3 — лучшее соотношение цена/качество
+        messages:    openaiMessages,
+        max_tokens:  1000,
+        temperature: 0.9,
+      }),
+    });
 
-    let lastError = null;
+    const data = await response.json();
 
-    for (const model of MODELS) {
-      try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type":  "application/json",
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "HTTP-Referer":  "https://vlad-on-git.github.io/DND/",
-            "X-Title":       "Khranitel Svitkov",
-          },
-          body: JSON.stringify({
-            model,
-            messages:    openaiMessages,
-            max_tokens:  1000,
-            temperature: 0.9,
-            // Просим строго JSON
-            response_format: { type: "text" },
-          }),
-        });
-
-        const contentType = response.headers.get("content-type") || "";
-        if (!contentType.includes("application/json")) {
-          lastError = { model, error: "Non-JSON response" };
-          continue;
-        }
-
-        const data = await response.json();
-
-        if (!response.ok || data.error) {
-          lastError = { model, error: data.error };
-          continue;
-        }
-
-        const text = data?.choices?.[0]?.message?.content || "";
-
-        // Если модель вернула пустой ответ — пробуем следующую
-        if (!text || text.trim() === "{}" || text.trim() === "") {
-          lastError = { model, error: "Empty response" };
-          continue;
-        }
-
-        console.log("Model used:", model, "| Response length:", text.length);
-
-        return res.status(200).json({
-          content: [{ type: "text", text }]
-        });
-
-      } catch (modelErr) {
-        lastError = { model, error: modelErr.message };
-        continue;
-      }
+    if (!response.ok || data.error) {
+      return res.status(500).json({ proxy_error: data });
     }
 
-    return res.status(500).json({ proxy_error: "All models failed", last: lastError });
+    // Конвертируем ответ DeepSeek → формат Anthropic (чтобы game.html не менять)
+    const text = data?.choices?.[0]?.message?.content || "{}";
+    return res.status(200).json({
+      content: [{ type: "text", text }]
+    });
 
   } catch (err) {
     console.error(err);
