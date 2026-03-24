@@ -54,11 +54,12 @@ export default async function handler(req, res) {
     }
 
     // Конвертируем ответ Gemini → формат Anthropic (который ожидает game.js)
-    // Gemini: data.candidates[0].content.parts[0].text
-    // Anthropic: data.content[0].text
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const candidate   = data.candidates?.[0];
+    const text        = candidate?.content?.parts?.[0]?.text || '';
+    const finishReason = candidate?.finishReason || 'STOP'; // STOP | MAX_TOKENS | SAFETY | RECITATION
     return res.status(200).json({
-      content: [{ type: 'text', text }],
+      content:      [{ type: 'text', text }],
+      finishReason, // передаём клиенту чтобы он знал об обрыве
     });
 
   } catch (err) {
