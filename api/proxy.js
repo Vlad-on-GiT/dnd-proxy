@@ -1,7 +1,7 @@
 export const config = {
   api: {
     bodyParser:  { sizeLimit: '4mb' },
-    maxDuration: 30,
+    maxDuration: 60,
   },
 };
 
@@ -17,19 +17,34 @@ export default async function handler(req, res) {
   try {
     const { system, messages, max_tokens } = req.body;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type":      "application/json",
-        "x-api-key":         process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+    // Конвертируем формат Anthropic → Gemini
+    // Anthropic: messages = [{role:'user'|'assistant', content:'...'}]
+    // Gemini: contents = [{role:'user'|'model', parts:[{text:'...'}]}]
+    const contents = messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    const geminiBody = {
+      system_instruction: {
+        parts: [{ text: system || 'Ты — рассказчик, ведущий приключение.' }],
       },
-      body: JSON.stringify({
-        model:      "claude-haiku-4-5-20251001",
-        max_tokens: max_tokens || 1200,
-        system,
-        messages,
-      }),
+      contents,
+      generationConfig: {
+        maxOutputTokens: max_tokens || 2000,
+        temperature: 1.0,
+        topP: 0.95,
+      },
+    };
+
+    const model  = 'gemini-2.5-flash';
+    const apiKey = process.env.GEMINI_API_KEY;
+    const url    = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(geminiBody),
     });
 
     const data = await response.json();
@@ -38,11 +53,16 @@ export default async function handler(req, res) {
       return res.status(500).json({ proxy_error: data });
     }
 
-    // Anthropic формат совпадает с тем что ожидает game.js — возвращаем как есть
-    return res.status(200).json(data);
+    // Конвертируем ответ Gemini → формат Anthropic (который ожидает game.js)
+    // Gemini: data.candidates[0].content.parts[0].text
+    // Anthropic: data.content[0].text
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return res.status(200).json({
+      content: [{ type: 'text', text }],
+    });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Proxy error", details: err.message });
+    return res.status(500).json({ error: 'Proxy error', details: err.message });
   }
 }
